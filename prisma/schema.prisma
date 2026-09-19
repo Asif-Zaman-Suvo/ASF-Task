@@ -1,0 +1,97 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Status {
+  PENDING
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ActivityType {
+  CREATED
+  STATUS_CHANGED
+  ASSIGNEE_CHANGED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  requested ServiceRequest[] @relation("RequestedBy")
+  assigned  ServiceRequest[] @relation("AssignedTo")
+  activities Activity[]
+}
+
+model Category {
+  id        String           @id @default(cuid())
+  name      String
+  slug      String           @unique
+  requests  ServiceRequest[]
+}
+
+model ServiceRequest {
+  id          String   @id @default(cuid())
+  number      Int      @unique
+  title       String
+  description String
+  requesterId String
+  categoryId   String
+  priority     Priority
+  priorityRank Int      @default(0)
+  status       Status
+  statusRank   Int      @default(0)
+  assigneeId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  requester User     @relation("RequestedBy", fields: [requesterId], references: [id])
+  assignee  User?    @relation("AssignedTo", fields: [assigneeId], references: [id])
+  category  Category @relation(fields: [categoryId], references: [id])
+  activities Activity[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([categoryId])
+  @@index([assigneeId])
+  @@index([updatedAt])
+  @@index([number])
+  @@index([status, updatedAt])
+  @@index([priority, updatedAt])
+  @@index([assigneeId, updatedAt])
+  @@index([categoryId, updatedAt])
+}
+
+model Activity {
+  id         String       @id @default(cuid())
+  requestId  String
+  actorId    String
+  assigneeId String?
+  type       ActivityType
+  fromValue  String?
+  toValue    String?
+  createdAt  DateTime     @default(now())
+
+  request ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  actor   User           @relation(fields: [actorId], references: [id])
+
+  @@index([requestId])
+  @@index([assigneeId])
+  @@index([createdAt])
+}
