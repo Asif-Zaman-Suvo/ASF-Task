@@ -29,47 +29,56 @@ export function RequestTable({
 
   return (
     <>
-      <div className="md:hidden space-y-3">
+      <ul className="space-y-3 lg:hidden">
         {requests.map((request) => (
-          <article key={request.id} className="rounded-lg border border-slate-200 bg-white p-4">
-            <Link href={`/requests/${request.id}`} className="font-medium text-teal-800 hover:underline">
-              {request.displayId}: {request.title}
-            </Link>
-            <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <dt className="text-slate-500">Requester</dt>
-                <dd>{request.requester.name}</dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Category</dt>
-                <dd>{request.category.name}</dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Priority</dt>
-                <dd className="mt-1">
-                  <PriorityBadge priority={request.priority} />
-                </dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Status</dt>
-                <dd className="mt-1">
-                  <StatusBadge status={request.status} />
-                </dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Assignee</dt>
-                <dd>{request.assignee?.name ?? "Unassigned"}</dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Updated</dt>
-                <dd>{formatDateTime(request.updatedAt)}</dd>
-              </div>
-            </dl>
-          </article>
+          <li key={request.id}>
+            <article className="rounded-lg border border-slate-200 bg-white p-4">
+              <h2 className="text-base font-medium">
+                <Link
+                  href={`/requests/${request.id}`}
+                  className="break-words text-teal-800 hover:underline"
+                >
+                  {request.displayId}: {request.title}
+                </Link>
+              </h2>
+              <dl className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-slate-600">Requester</dt>
+                  <dd className="break-words text-slate-900">{request.requester.name}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-600">Category</dt>
+                  <dd className="break-words text-slate-900">{request.category.name}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-600">Priority</dt>
+                  <dd className="mt-1">
+                    <PriorityBadge priority={request.priority} />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-600">Status</dt>
+                  <dd className="mt-1">
+                    <StatusBadge status={request.status} />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-600">Assignee</dt>
+                  <dd className="break-words text-slate-900">
+                    {request.assignee?.name ?? "Unassigned"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-600">Updated</dt>
+                  <dd className="text-slate-900">{formatDateTime(request.updatedAt)}</dd>
+                </div>
+              </dl>
+            </article>
+          </li>
         ))}
-      </div>
+      </ul>
 
-      <div className="hidden md:block">
+      <div className="hidden lg:block">
         <Table>
           <caption className="sr-only">Service requests</caption>
           <THead>
@@ -87,10 +96,16 @@ export function RequestTable({
           <TBody>
             {requests.map((request) => (
               <tr key={request.id} className="hover:bg-slate-50">
-                <TD className="font-mono text-xs">{request.displayId}</TD>
-                <TD className="max-w-xs truncate">
-                  <Link href={`/requests/${request.id}`} className="font-medium text-teal-800 hover:underline">
-                    {request.title}
+                <TH scope="row" className="whitespace-nowrap px-3 py-3 font-mono text-xs font-normal normal-case tracking-normal text-slate-800">
+                  {request.displayId}
+                </TH>
+                <TD className="max-w-xs">
+                  <Link
+                    href={`/requests/${request.id}`}
+                    className="font-medium text-teal-800 hover:underline"
+                    title={request.title}
+                  >
+                    <span className="line-clamp-2">{request.title}</span>
                   </Link>
                 </TD>
                 <TD>{request.requester.name}</TD>

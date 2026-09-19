@@ -68,7 +68,8 @@ export function RequestActions({
   }
 
   return (
-    <div className="space-y-3">
+    <fieldset className="space-y-3" disabled={isPending} aria-busy={isPending}>
+      <legend className="text-sm font-medium text-slate-900">Update request</legend>
       <div className="grid gap-3 sm:grid-cols-2">
         <Select
           id="request-status"
@@ -98,8 +99,12 @@ export function RequestActions({
           ))}
         </Select>
       </div>
-      {isPending ? <p className="text-sm text-slate-500">Saving changes…</p> : null}
+      {isPending ? (
+        <p className="text-sm text-slate-700" aria-live="polite">
+          Saving changes…
+        </p>
+      ) : null}
       {error ? <Alert title={error} /> : null}
-    </div>
+    </fieldset>
   );
 }

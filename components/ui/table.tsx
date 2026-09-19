@@ -3,7 +3,12 @@ import { cn } from "@/lib/cn";
 
 export function Table({ className, ...props }: HTMLAttributes<HTMLTableElement>) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+    <div
+      className="overflow-x-auto rounded-lg border border-slate-200 bg-white"
+      role="region"
+      aria-label="Service requests table"
+      tabIndex={0}
+    >
       <table className={cn("min-w-full divide-y divide-slate-200 text-sm", className)} {...props} />
     </div>
   );

@@ -74,16 +74,28 @@ export function RequestFilters({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-6">
+      <form
+        role="search"
+        aria-label="Search and filter requests"
+        className="grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-2 xl:grid-cols-4"
+        onSubmit={(event) => event.preventDefault()}
+      >
         <div className="sm:col-span-2">
           <Label htmlFor="search">Search</Label>
           <Input
             id="search"
+            name="search"
+            type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Title or requester"
             autoComplete="off"
+            enterKeyHint="search"
+            aria-describedby="search-hint"
           />
+          <p id="search-hint" className="mt-1 text-xs text-slate-600">
+            Results update as you type.
+          </p>
         </div>
         <Select
           id="status"
@@ -158,17 +170,23 @@ export function RequestFilters({
           <option value="asc">Ascending</option>
         </Select>
         {hasFilters ? (
-          <div className="flex items-end">
-            <Button variant="ghost" onClick={clearAll}>
+          <div className="flex items-end sm:col-span-2 xl:col-span-1">
+            <Button variant="ghost" className="w-full sm:w-auto" onClick={clearAll}>
               Clear filters
             </Button>
           </div>
         ) : null}
+      </form>
+
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {isPending ? "Updating results" : null}
       </div>
 
-      <div className="relative" aria-busy={isPending} aria-live="polite">
+      <div id="request-results" className="relative" aria-busy={isPending}>
         {isPending ? (
-          <p className="absolute right-0 top-[-1.75rem] text-xs text-slate-500">Updating results…</p>
+          <p className="mb-2 text-sm text-slate-600" aria-hidden>
+            Updating results…
+          </p>
         ) : null}
         <div className={isPending ? "opacity-60" : undefined}>{children}</div>
       </div>

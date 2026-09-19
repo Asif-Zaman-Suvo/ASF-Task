@@ -44,13 +44,18 @@ export default async function RequestDetailPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/requests" className="text-sm font-medium text-teal-800 hover:underline">
+        <Link
+          href="/requests"
+          className="inline-flex min-h-11 items-center text-sm font-medium text-teal-800 hover:underline"
+        >
           Back to requests
         </Link>
-        <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="font-mono text-xs text-slate-500">{formatRequestNumber(request.number)}</p>
-            <h1 className="text-2xl font-semibold text-slate-900">{request.title}</h1>
+        <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="font-mono text-xs text-slate-600">{formatRequestNumber(request.number)}</p>
+            <h1 className="text-xl font-semibold break-words text-slate-900 sm:text-2xl">
+              {request.title}
+            </h1>
           </div>
           <div className="flex flex-wrap gap-2">
             <PriorityBadge priority={request.priority} />
@@ -59,8 +64,13 @@ export default async function RequestDetailPage({
         </div>
       </div>
 
-      <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="text-lg font-semibold text-slate-900">Request information</h2>
+      <section
+        className="space-y-4 rounded-lg border border-slate-200 bg-white p-4 sm:p-6"
+        aria-labelledby="request-info-heading"
+      >
+        <h2 id="request-info-heading" className="text-lg font-semibold text-slate-900">
+          Request information
+        </h2>
         <RequestMeta
           requester={request.requester.name}
           category={request.category.name}
@@ -69,7 +79,7 @@ export default async function RequestDetailPage({
           priority={request.priority}
         />
         <div>
-          <h3 className="text-xs font-medium uppercase tracking-wide text-slate-500">Description</h3>
+          <h3 className="text-xs font-medium uppercase tracking-wide text-slate-600">Description</h3>
           <p className="mt-1 text-sm leading-6 text-slate-800">{request.description}</p>
         </div>
         <RequestActions
@@ -80,15 +90,18 @@ export default async function RequestDetailPage({
         />
       </section>
 
-      <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="text-lg font-semibold text-slate-900">Activity</h2>
+      <section
+        className="space-y-4 rounded-lg border border-slate-200 bg-white p-4 sm:p-6"
+        aria-labelledby="activity-heading"
+      >
+        <h2 id="activity-heading" className="text-lg font-semibold text-slate-900">
+          Activity
+        </h2>
         <ActivityTimeline activities={request.activities} />
       </section>
 
       {summary.byAssignee.length > 0 ? (
-        <section className="rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
-          <AssigneeSummary summaries={summary.byAssignee} names={names} />
-        </section>
+        <AssigneeSummary summaries={summary.byAssignee} names={names} />
       ) : null}
     </div>
   );

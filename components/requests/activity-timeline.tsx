@@ -19,7 +19,7 @@ function activityText(activity: ActivityItem): string {
 
 export function ActivityTimeline({ activities }: { activities: ActivityItem[] }) {
   if (activities.length === 0) {
-    return <p className="text-sm text-slate-600">No activity recorded yet.</p>;
+    return <p className="text-sm text-slate-700">No activity recorded yet.</p>;
   }
 
   return (
@@ -30,7 +30,7 @@ export function ActivityTimeline({ activities }: { activities: ActivityItem[] })
           <p className="text-sm text-slate-900">
             <span className="font-medium">{activity.actor.name}</span> {activityText(activity)}
           </p>
-          <p className="text-xs text-slate-500">{formatDateTime(activity.createdAt)}</p>
+          <p className="text-xs text-slate-600">{formatDateTime(activity.createdAt)}</p>
         </li>
       ))}
     </ol>
@@ -47,14 +47,17 @@ export function AssigneeSummary({
   if (summaries.length === 0) return null;
 
   return (
-    <section aria-labelledby="assignee-summary-heading" className="space-y-3">
+    <section
+      aria-labelledby="assignee-summary-heading"
+      className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 sm:p-6"
+    >
       <h2 id="assignee-summary-heading" className="text-lg font-semibold text-slate-900">
         Workload from history
       </h2>
       <ul className="grid gap-3 sm:grid-cols-2">
         {summaries.map((summary) => (
           <li key={summary.assigneeId} className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
-            <p className="font-medium text-slate-900">
+            <p className="break-words font-medium text-slate-900">
               {names[summary.assigneeId] ?? summary.assigneeId}
             </p>
             <p className="text-slate-600">
@@ -89,23 +92,23 @@ export function RequestMeta({
   return (
     <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <div>
-        <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Requester</dt>
-        <dd className="text-sm text-slate-900">{requester}</dd>
+        <dt className="text-xs font-medium uppercase tracking-wide text-slate-600">Requester</dt>
+        <dd className="break-words text-sm text-slate-900">{requester}</dd>
       </div>
       <div>
-        <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Category</dt>
-        <dd className="text-sm text-slate-900">{category}</dd>
+        <dt className="text-xs font-medium uppercase tracking-wide text-slate-600">Category</dt>
+        <dd className="break-words text-sm text-slate-900">{category}</dd>
       </div>
       <div>
-        <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Priority</dt>
+        <dt className="text-xs font-medium uppercase tracking-wide text-slate-600">Priority</dt>
         <dd className="text-sm text-slate-900">{priorityLabel(priority)}</dd>
       </div>
       <div>
-        <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Created</dt>
+        <dt className="text-xs font-medium uppercase tracking-wide text-slate-600">Created</dt>
         <dd className="text-sm text-slate-900">{formatDateTime(createdAt)}</dd>
       </div>
       <div>
-        <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Last updated</dt>
+        <dt className="text-xs font-medium uppercase tracking-wide text-slate-600">Last updated</dt>
         <dd className="text-sm text-slate-900">{formatDateTime(updatedAt)}</dd>
       </div>
     </dl>

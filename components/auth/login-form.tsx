@@ -59,8 +59,14 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4" noValidate>
-      {formError ? <Alert title={formError} /> : null}
+    <form
+      onSubmit={onSubmit}
+      className="space-y-4"
+      noValidate
+      aria-busy={isPending}
+      aria-describedby={formError ? "login-form-error" : undefined}
+    >
+      {formError ? <Alert id="login-form-error" title={formError} /> : null}
 
       <div className="space-y-1">
         <Label htmlFor="email">Email</Label>
@@ -68,7 +74,7 @@ export function LoginForm() {
           id="email"
           name="email"
           type="email"
-          autoComplete="username"
+          autoComplete="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           aria-invalid={Boolean(fieldErrors.email)}
@@ -104,7 +110,7 @@ export function LoginForm() {
         ) : null}
       </div>
 
-      <Button type="submit" className="w-full" disabled={isPending}>
+      <Button type="submit" className="w-full" disabled={isPending} aria-busy={isPending}>
         {isPending ? "Signing in…" : "Sign in"}
       </Button>
     </form>

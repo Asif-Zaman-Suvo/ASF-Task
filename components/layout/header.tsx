@@ -16,17 +16,24 @@ export function Header({ user }: { user: SessionUser }) {
   }
 
   return (
-    <header className="border-b border-slate-200 bg-white">
-      <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-        <Link href="/requests" className="min-w-0 font-semibold text-teal-800">
-          <span className="block truncate">As-Sunnah Foundation</span>
-          <span className="block text-xs font-normal text-slate-500">Service Requests</span>
+    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
+      <div className="mx-auto flex min-h-14 w-full max-w-7xl items-center justify-between gap-3 px-4 py-2 sm:px-6 lg:px-8">
+        <Link
+          href="/requests"
+          className="min-w-0 rounded-sm text-teal-800 hover:text-teal-900"
+        >
+          <span className="block truncate font-semibold">As-Sunnah Foundation</span>
+          <span className="block truncate text-xs font-normal text-slate-600">
+            Service Requests
+          </span>
         </Link>
-        <div className="flex items-center gap-3">
-          <p className="hidden text-sm text-slate-600 sm:block">{user.name}</p>
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <p className="hidden max-w-[12rem] truncate text-sm text-slate-700 md:block" title={user.name}>
+            {user.name}
+          </p>
           <Button variant="secondary" onClick={logout} aria-label="Sign out">
-            <LogOut className="mr-2 size-4" aria-hidden />
-            Sign out
+            <LogOut className="size-4 sm:mr-2" aria-hidden />
+            <span className="hidden sm:inline">Sign out</span>
           </Button>
         </div>
       </div>

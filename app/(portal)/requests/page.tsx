@@ -33,8 +33,8 @@ export default async function RequestsPage({
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Service requests</h1>
-        <p className="text-sm text-slate-600">
+        <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">Service requests</h1>
+        <p className="text-sm text-slate-700">
           Search, filter, and manage internal service requests.
         </p>
       </div>
