@@ -1,18 +1,33 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
+import { toast } from "sonner";
 import type { SessionUser } from "@/lib/auth/types";
+import { apiFetch, ApiClientError } from "@/lib/http";
 import { Button } from "@/components/ui/button";
 
 export function Header({ user }: { user: SessionUser }) {
   const router = useRouter();
+  const [isPending, setIsPending] = useState(false);
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-    router.refresh();
+    if (isPending) return;
+    setIsPending(true);
+    try {
+      await apiFetch("/api/auth/logout", { method: "POST" });
+      router.push("/login");
+      router.refresh();
+    } catch (error) {
+      const message =
+        error instanceof ApiClientError
+          ? error.message
+          : "Unable to sign out. Try again.";
+      toast.error(message);
+      setIsPending(false);
+    }
   }
 
   return (
@@ -31,9 +46,15 @@ export function Header({ user }: { user: SessionUser }) {
           <p className="hidden max-w-[12rem] truncate text-sm text-slate-700 md:block" title={user.name}>
             {user.name}
           </p>
-          <Button variant="secondary" onClick={logout} aria-label="Sign out">
+          <Button
+            variant="secondary"
+            onClick={logout}
+            disabled={isPending}
+            aria-label="Sign out"
+            aria-busy={isPending}
+          >
             <LogOut className="size-4 sm:mr-2" aria-hidden />
-            <span className="hidden sm:inline">Sign out</span>
+            <span className="hidden sm:inline">{isPending ? "Signing out…" : "Sign out"}</span>
           </Button>
         </div>
       </div>

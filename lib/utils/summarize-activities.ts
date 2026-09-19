@@ -48,7 +48,11 @@ type AssigneeBucket = {
 /**
  * Single-pass O(n) summary. Invalid/incomplete records are skipped, never thrown.
  * CREATED and non-RESOLVED status events are skipped.
- * Unsorted input is processed in array order (seed/API emit chronological events).
+ *
+ * Precondition: activities for the same requestId should be in chronological
+ * `createdAt` order. Pairing (assign → resolve) follows array order, not a sort.
+ * Callers (request details `orderBy: createdAt asc`, and the assignee report query)
+ * already provide chronological rows. This function does not sort, so it stays O(n).
  */
 export function summarizeActivities(activities: unknown): SummarizeResult {
   if (!Array.isArray(activities)) {

@@ -11,16 +11,36 @@ async function login(page: import("@playwright/test").Page) {
   await expect(page).toHaveURL(/\/requests/);
 }
 
+async function expectUnauthorized(response: import("@playwright/test").APIResponse) {
+  expect(response.status()).toBe(401);
+  const body = await response.json();
+  expect(body.error.code).toBe("UNAUTHORIZED");
+}
+
 test("unauthenticated users are redirected from protected pages", async ({ page }) => {
   await page.goto("/requests");
   await expect(page).toHaveURL(/\/login/);
 });
 
 test("unauthenticated API requests return 401", async ({ request }) => {
-  const response = await request.get("/api/requests");
-  expect(response.status()).toBe(401);
-  const body = await response.json();
-  expect(body.error.code).toBe("UNAUTHORIZED");
+  const list = await request.get("/api/requests");
+  await expectUnauthorized(list);
+
+  const detail = await request.get("/api/requests/req_00001");
+  await expectUnauthorized(detail);
+
+  const status = await request.patch("/api/requests/req_00001/status", {
+    data: { status: "PENDING" },
+  });
+  await expectUnauthorized(status);
+
+  const assignee = await request.patch("/api/requests/req_00001/assignee", {
+    data: { assigneeId: null },
+  });
+  await expectUnauthorized(assignee);
+
+  const report = await request.get("/api/reports/assignees");
+  await expectUnauthorized(report);
 });
 
 test("login, list, search URL, details, refresh, and updates", async ({ page }) => {
@@ -30,10 +50,10 @@ test("login, list, search URL, details, refresh, and updates", async ({ page }) 
   await expect(page.locator("table").getByText("REQ-").first()).toBeVisible();
   await expect(page.getByText("Showing")).toBeVisible();
 
-  await page.getByLabel("Search").fill("Laptop");
+  await page.locator("#search").fill("Laptop");
   await expect(page).toHaveURL(/search=Laptop/, { timeout: 10_000 });
   await page.reload();
-  await expect(page.getByLabel("Search")).toHaveValue("Laptop");
+  await expect(page.locator("#search")).toHaveValue("Laptop");
 
   await page.getByLabel("Status").selectOption("PENDING");
   await expect(page).toHaveURL(/status=PENDING/);
@@ -67,10 +87,58 @@ test("login, list, search URL, details, refresh, and updates", async ({ page }) 
   await expect(page.getByText("Assignee updated").first()).toBeVisible();
 });
 
+test("filter, sort, and pagination state is preserved in the URL after refresh", async ({ page }) => {
+  await login(page);
+
+  await page.locator("#search").fill("Laptop");
+  await expect(page).toHaveURL(/search=Laptop/, { timeout: 10_000 });
+
+  await page.locator("#status").selectOption("PENDING");
+  await page.locator("#priority").selectOption("LOW");
+  await page.locator("#categoryId").selectOption("cat_it");
+  await page.locator("#assigneeId").selectOption("unassigned");
+  await page.locator("#sort").selectOption("priority");
+  await page.locator("#order").selectOption("asc");
+
+  await expect(page).toHaveURL(/status=PENDING/);
+  await expect(page).toHaveURL(/priority=LOW/);
+  await expect(page).toHaveURL(/categoryId=cat_it/);
+  await expect(page).toHaveURL(/assigneeId=unassigned/);
+  await expect(page).toHaveURL(/sort=priority/);
+  await expect(page).toHaveURL(/order=asc/);
+
+  const pagination = page.getByRole("navigation", { name: "Pagination" });
+  await expect(pagination).toBeVisible({ timeout: 10_000 });
+  await pagination.getByRole("button", { name: "Next" }).click();
+  await expect(page).toHaveURL(/page=2/);
+
+  const url = page.url();
+  await page.reload();
+  await expect(page).toHaveURL(url);
+  await expect(page.locator("#search")).toHaveValue("Laptop");
+  await expect(page.locator("#status")).toHaveValue("PENDING");
+  await expect(page.locator("#priority")).toHaveValue("LOW");
+  await expect(page.locator("#categoryId")).toHaveValue("cat_it");
+  await expect(page.locator("#assigneeId")).toHaveValue("unassigned");
+  await expect(page.locator("#sort")).toHaveValue("priority");
+  await expect(page.locator("#order")).toHaveValue("asc");
+});
+
 test("unknown request shows not found", async ({ page }) => {
   await login(page);
   await page.goto("/requests/does-not-exist");
   await expect(page.getByRole("heading", { name: "Request not found" })).toBeVisible();
+});
+
+test("logout returns to login and blocks protected pages", async ({ page }) => {
+  await login(page);
+  await expect(page.getByRole("heading", { name: "Service requests" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page).toHaveURL(/\/login/);
+
+  await page.goto("/requests");
+  await expect(page).toHaveURL(/\/login/);
 });
 
 test("failed status mutation rolls back the selector", async ({ page }) => {
@@ -92,6 +160,44 @@ test("failed status mutation rolls back the selector", async ({ page }) => {
   await page.locator("#request-status").selectOption(next);
   await expect(page.locator('[role="alert"]').filter({ hasText: "Simulated failure" })).toBeVisible();
   await expect(page.locator("#request-status")).toHaveValue(original);
+});
+
+test("failed assignee mutation rolls back and blocks duplicate submits", async ({ page }) => {
+  await login(page);
+  await page.goto("/requests/req_00001");
+
+  const assignee = page.locator("#request-assignee");
+  await expect(assignee).toBeVisible();
+  const original = await assignee.inputValue();
+  const next = await assignee.evaluate((el, current) => {
+    const select = el as HTMLSelectElement;
+    return Array.from(select.options)
+      .map((option) => option.value)
+      .find((value) => value !== current) ?? "";
+  }, original);
+
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  await page.route("**/api/requests/*/assignee", async (route) => {
+    await gate;
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "INTERNAL", message: "Simulated failure" } }),
+    });
+  });
+
+  await assignee.selectOption(next);
+  await expect(assignee).toBeDisabled();
+  await expect(page.locator("#request-status")).toBeDisabled();
+  release();
+
+  await expect(page.locator('[role="alert"]').filter({ hasText: "Simulated failure" })).toBeVisible();
+  await expect(assignee).toHaveValue(original);
+  await expect(assignee).toBeEnabled();
 });
 
 test("mobile viewport can open the dashboard", async ({ page }) => {

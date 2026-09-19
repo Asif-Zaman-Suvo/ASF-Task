@@ -76,7 +76,7 @@ export function RequestFilters({
     <div className="space-y-4">
       <form
         role="search"
-        aria-label="Search and filter requests"
+        aria-label="Request filters"
         className="grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-2 xl:grid-cols-4"
         onSubmit={(event) => event.preventDefault()}
       >

@@ -76,6 +76,8 @@ model ServiceRequest {
   @@index([priority, updatedAt])
   @@index([assigneeId, updatedAt])
   @@index([categoryId, updatedAt])
+  @@index([statusRank, updatedAt])
+  @@index([priorityRank, updatedAt])
 }
 
 model Activity {
