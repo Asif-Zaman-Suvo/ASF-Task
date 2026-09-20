@@ -3,11 +3,11 @@ import { summarizeActivities } from "@/lib/utils/summarize-activities";
 
 describe("summarizeActivities", () => {
   it("returns empty result for non-arrays", () => {
-    expect(summarizeActivities(null)).toEqual({ byAssignee: [], skipped: 0 });
-    expect(summarizeActivities(undefined)).toEqual({ byAssignee: [], skipped: 0 });
+    expect(summarizeActivities(null)).toEqual({ byAssignee: [], skipped: 0, ignored: 0 });
+    expect(summarizeActivities(undefined)).toEqual({ byAssignee: [], skipped: 0, ignored: 0 });
   });
 
-  it("skips malformed, incomplete, and invalid-date records without throwing", () => {
+  it("skips malformed records and ignores irrelevant valid events", () => {
     const result = summarizeActivities([
       null,
       "bad",
@@ -19,7 +19,8 @@ describe("summarizeActivities", () => {
     ]);
 
     expect(result.byAssignee).toEqual([]);
-    expect(result.skipped).toBe(7);
+    expect(result.skipped).toBe(5);
+    expect(result.ignored).toBe(2);
   });
 
   it("computes assigned, resolved, and average resolution time in O(n)", () => {
@@ -51,6 +52,7 @@ describe("summarizeActivities", () => {
     ]);
 
     expect(result.skipped).toBe(0);
+    expect(result.ignored).toBe(0);
     expect(result.byAssignee).toEqual([
       {
         assigneeId: "a1",
@@ -105,6 +107,80 @@ describe("summarizeActivities", () => {
     });
   });
 
+  it("does not credit a resolve after unassign", () => {
+    const result = summarizeActivities([
+      {
+        requestId: "r1",
+        type: "ASSIGNEE_CHANGED",
+        assigneeId: "a1",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        requestId: "r1",
+        type: "ASSIGNEE_CHANGED",
+        assigneeId: null,
+        createdAt: "2026-01-01T01:00:00.000Z",
+      },
+      {
+        requestId: "r1",
+        type: "STATUS_CHANGED",
+        toValue: "RESOLVED",
+        createdAt: "2026-01-01T02:00:00.000Z",
+      },
+    ]);
+
+    expect(result.byAssignee).toEqual([
+      {
+        assigneeId: "a1",
+        totalAssigned: 1,
+        totalResolved: 0,
+        averageResolutionTimeMs: null,
+      },
+    ]);
+    expect(result.ignored).toBe(1);
+  });
+
+  it("does not count a second resolve after reopen without a new assign", () => {
+    const result = summarizeActivities([
+      {
+        requestId: "r1",
+        type: "ASSIGNEE_CHANGED",
+        assigneeId: "a1",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        requestId: "r1",
+        type: "STATUS_CHANGED",
+        toValue: "RESOLVED",
+        assigneeId: "a1",
+        createdAt: "2026-01-01T02:00:00.000Z",
+      },
+      {
+        requestId: "r1",
+        type: "STATUS_CHANGED",
+        toValue: "PENDING",
+        createdAt: "2026-01-01T03:00:00.000Z",
+      },
+      {
+        requestId: "r1",
+        type: "STATUS_CHANGED",
+        toValue: "RESOLVED",
+        assigneeId: "a1",
+        createdAt: "2026-01-01T04:00:00.000Z",
+      },
+    ]);
+
+    expect(result.byAssignee).toEqual([
+      {
+        assigneeId: "a1",
+        totalAssigned: 1,
+        totalResolved: 1,
+        averageResolutionTimeMs: 2 * 60 * 60 * 1000,
+      },
+    ]);
+    expect(result.ignored).toBe(2);
+  });
+
   it("handles a large mixed dataset without crashing", () => {
     const activities = Array.from({ length: 12_000 }, (_, index) => {
       if (index % 7 === 0) return { garbage: true };
@@ -126,6 +202,7 @@ describe("summarizeActivities", () => {
 
     const result = summarizeActivities(activities);
     expect(result.skipped).toBeGreaterThan(0);
+    expect(result.ignored).toBeGreaterThan(0);
     expect(result.byAssignee.length).toBeGreaterThan(0);
     for (const row of result.byAssignee) {
       expect(row.totalAssigned).toBeGreaterThanOrEqual(0);

@@ -33,13 +33,15 @@ JavaScript ships only where there is interaction. The table is HTML from the ser
 ## Data fetching and state
 
 - **List/detail reads:** RSC + `searchParams` / `params` + `dynamic = 'force-dynamic'`. Direct URL access and refresh work because the server re-reads the database. `getRequestById` is wrapped in React `cache()`, so `generateMetadata` and the page share a single DB round-trip. Detail loads chronological activity history.
-- **List UI state:** the URL (`search`, `status`, `priority`, `categoryId`, `assigneeId`, `sort`, `order`, `page`, `limit`). Debounced search (300ms) and filters call `router.replace` inside `useTransition` so the previous table stays visible with an updating indicator. Refresh keeps the same query.
+- **List UI state:** the URL (`search`, `status`, `priority`, `categoryId`, `assigneeId`, `sort`, `order`, `page`, `limit`). Debounced search (300ms) and filters call `router.replace` inside `useTransition` so the previous table stays visible with an updating indicator. Pagination uses `<Link>` + `router.push` in a transition (Back/middle-click work). Refresh keeps the same query.
 - **Mutations:** `PATCH` Route Handlers via `apiFetch` (10s timeout). Status and assignee both use `useOptimistic` + `useTransition`, then `router.refresh()`. `isPending` disables the fieldset so duplicate submits cannot fire. Failures toast and roll back to the last server-rendered value.
+- **Reference data cache:** `listCategories` and `listAssignees` use `unstable_cache` with tags (`categories`, `assignees`) and a 5-minute revalidate. List/detail pages stay `force-dynamic` because the request table is live.
 - **TanStack Query is not used.** A client cache would duplicate the URL + RSC as source of truth and fight `router.refresh()`.
 
 ## Performance
 
 - Server-side `where` / `orderBy` / `skip` / `take`. Default page size 20, max 50. The browser never receives 10k rows.
+- `orderBy` is `[sortColumn, number asc]` so offset pages do not shuffle rows that share a rank.
 - Filter indexes: `status`, `priority`, `categoryId`, `assigneeId`, `updatedAt`, `number`, plus `[status, updatedAt]`, `[priority, updatedAt]`, `[assigneeId, updatedAt]`, `[categoryId, updatedAt]`.
 - Rank-sort indexes: `[statusRank, updatedAt]`, `[priorityRank, updatedAt]`. Left-prefix covers `ORDER BY statusRank|priorityRank`.
 - SQLite cannot use `autoincrement()` on a non-id column, so `number` is assigned in seed (portable to a Postgres sequence later).
@@ -69,11 +71,11 @@ JavaScript ships only where there is interaction. The table is HTML from the ser
 
 ## `summarizeActivities`
 
-Single pass, O(n) time, O(k + r) memory. Invalid/incomplete records increment `skipped` and never throw. `ASSIGNEE_CHANGED` counts assigned. `STATUS_CHANGED` to `RESOLVED` counts resolved for the assignee currently attached to that `requestId`. Duration is included in the average only when `resolvedAt >= assignedAt`.
+Single pass, O(n) time, O(k + r) memory. Never throws. `skipped` is malformed/incomplete records; `ignored` is valid noise (`CREATED`, non-RESOLVED status, extra resolve with no open assignment). `ASSIGNEE_CHANGED` with an id counts assigned and opens pairing. Unassign clears the open assignment. `STATUS_CHANGED` to `RESOLVED` counts for the current assignee and closes pairing, so reopen + resolve cannot inflate totals. Duration is included in the average only when `resolvedAt >= assignedAt`.
 
 Precondition: activities for the same `requestId` must already be in chronological `createdAt` order. The function does not sort. Callers already pass that order (detail `include.activities.orderBy: createdAt asc`, report `findMany` the same).
 
-`GET /api/reports/assignees` runs the utility over the whole activity table (~26.5k seeded rows) and returns per-assignee totals (assigned, resolved, average resolution time) plus `skipped`. The detail page also runs it on that request’s history (“Workload from history”). There is no separate reports dashboard.
+`GET /api/reports/assignees` runs the utility over the whole activity table (~26.5k seeded rows) and returns per-assignee totals (assigned, resolved, average resolution time) plus `skipped` and `ignored`. The detail page also runs it on that request’s history (“Workload from history”). There is no separate reports dashboard.
 
 ## Responsive and accessibility
 

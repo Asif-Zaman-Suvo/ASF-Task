@@ -16,6 +16,7 @@ export type AssigneeActivitySummary = {
 export type SummarizeResult = {
   byAssignee: AssigneeActivitySummary[];
   skipped: number;
+  ignored: number;
 };
 
 function isNonEmptyString(value: unknown): value is string {
@@ -46,22 +47,30 @@ type AssigneeBucket = {
 };
 
 /**
- * Single-pass O(n) summary. Invalid/incomplete records are skipped, never thrown.
- * CREATED and non-RESOLVED status events are skipped.
+ * Single-pass O(n) summary. Never throws.
  *
- * Precondition: activities for the same requestId should be in chronological
- * `createdAt` order. Pairing (assign → resolve) follows array order, not a sort.
- * Callers (request details `orderBy: createdAt asc`, and the assignee report query)
- * already provide chronological rows. This function does not sort, so it stays O(n).
+ * - `skipped`: malformed/incomplete records (missing ids, bad dates, unknown types)
+ * - `ignored`: valid but irrelevant (CREATED, non-RESOLVED status, extra resolves
+ *   with no open assignment)
+ *
+ * Precondition: activities for the same requestId must already be in chronological
+ * `createdAt` order. Pairing follows array order. This function does not sort.
+ *
+ * Unassign (`ASSIGNEE_CHANGED` with empty assigneeId) clears the open assignment
+ * so a later resolve is not credited to the previous assignee. A resolve closes
+ * the open assignment; a later resolve on the same request counts only after a
+ * new assign (so reopen + resolve cannot inflate totals).
  */
 export function summarizeActivities(activities: unknown): SummarizeResult {
   if (!Array.isArray(activities)) {
-    return { byAssignee: [], skipped: 0 };
+    return { byAssignee: [], skipped: 0, ignored: 0 };
   }
 
   const byAssignee = new Map<string, AssigneeBucket>();
   const requestState = new Map<string, { assigneeId: string; assignedAt: number }>();
+  const resolvedWithoutOpen = new Set<string>();
   let skipped = 0;
+  let ignored = 0;
 
   const bucket = (assigneeId: string): AssigneeBucket => {
     const existing = byAssignee.get(assigneeId);
@@ -92,40 +101,50 @@ export function summarizeActivities(activities: unknown): SummarizeResult {
       continue;
     }
 
+    if (type === "CREATED") {
+      ignored += 1;
+      continue;
+    }
+
     if (type === "ASSIGNEE_CHANGED") {
       const assigneeId = record.assigneeId;
       if (!isNonEmptyString(assigneeId)) {
-        skipped += 1;
+        requestState.delete(requestId);
         continue;
       }
       bucket(assigneeId).assigned += 1;
       requestState.set(requestId, { assigneeId, assignedAt: createdAt.getTime() });
+      resolvedWithoutOpen.delete(requestId);
       continue;
     }
 
     if (type === "STATUS_CHANGED") {
       if (record.toValue !== "RESOLVED") {
-        skipped += 1;
+        ignored += 1;
         continue;
       }
 
       const current = requestState.get(requestId);
-      if (!current) {
-        if (isNonEmptyString(record.assigneeId)) {
-          bucket(record.assigneeId).resolved += 1;
-        } else {
-          skipped += 1;
+      if (current) {
+        const stats = bucket(current.assigneeId);
+        stats.resolved += 1;
+        const delta = createdAt.getTime() - current.assignedAt;
+        if (delta >= 0) {
+          stats.durationSum += delta;
+          stats.durationCount += 1;
         }
+        requestState.delete(requestId);
+        resolvedWithoutOpen.add(requestId);
         continue;
       }
 
-      const stats = bucket(current.assigneeId);
-      stats.resolved += 1;
-      const delta = createdAt.getTime() - current.assignedAt;
-      if (delta >= 0) {
-        stats.durationSum += delta;
-        stats.durationCount += 1;
+      if (isNonEmptyString(record.assigneeId) && !resolvedWithoutOpen.has(requestId)) {
+        bucket(record.assigneeId).resolved += 1;
+        resolvedWithoutOpen.add(requestId);
+        continue;
       }
+
+      ignored += 1;
       continue;
     }
 
@@ -142,5 +161,6 @@ export function summarizeActivities(activities: unknown): SummarizeResult {
         : null,
     })),
     skipped,
+    ignored,
   };
 }

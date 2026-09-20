@@ -94,14 +94,14 @@ test("filter, sort, and pagination state is preserved in the URL after refresh",
   await expect(page).toHaveURL(/search=Laptop/, { timeout: 10_000 });
 
   await page.locator("#status").selectOption("PENDING");
-  await page.locator("#priority").selectOption("LOW");
+  await page.locator("#priority").selectOption("HIGH");
   await page.locator("#categoryId").selectOption("cat_it");
   await page.locator("#assigneeId").selectOption("unassigned");
   await page.locator("#sort").selectOption("priority");
   await page.locator("#order").selectOption("asc");
 
   await expect(page).toHaveURL(/status=PENDING/);
-  await expect(page).toHaveURL(/priority=LOW/);
+  await expect(page).toHaveURL(/priority=HIGH/);
   await expect(page).toHaveURL(/categoryId=cat_it/);
   await expect(page).toHaveURL(/assigneeId=unassigned/);
   await expect(page).toHaveURL(/sort=priority/);
@@ -109,7 +109,7 @@ test("filter, sort, and pagination state is preserved in the URL after refresh",
 
   const pagination = page.getByRole("navigation", { name: "Pagination" });
   await expect(pagination).toBeVisible({ timeout: 10_000 });
-  await pagination.getByRole("button", { name: "Next" }).click();
+  await pagination.getByRole("link", { name: "Next" }).click();
   await expect(page).toHaveURL(/page=2/);
 
   const url = page.url();
@@ -117,7 +117,7 @@ test("filter, sort, and pagination state is preserved in the URL after refresh",
   await expect(page).toHaveURL(url);
   await expect(page.locator("#search")).toHaveValue("Laptop");
   await expect(page.locator("#status")).toHaveValue("PENDING");
-  await expect(page.locator("#priority")).toHaveValue("LOW");
+  await expect(page.locator("#priority")).toHaveValue("HIGH");
   await expect(page.locator("#categoryId")).toHaveValue("cat_it");
   await expect(page.locator("#assigneeId")).toHaveValue("unassigned");
   await expect(page.locator("#sort")).toHaveValue("priority");

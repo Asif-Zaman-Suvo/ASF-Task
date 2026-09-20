@@ -2,22 +2,31 @@ import { formatDateTime, formatDuration, priorityLabel, statusLabel } from "@/li
 import type { ActivityItem } from "@/lib/types/request";
 import type { AssigneeActivitySummary } from "@/lib/utils/summarize-activities";
 
-function activityText(activity: ActivityItem): string {
+function activityText(activity: ActivityItem, names: Record<string, string>): string {
   switch (activity.type) {
     case "CREATED":
       return "created this request";
     case "STATUS_CHANGED":
       return `changed status from ${statusLabel(activity.fromValue ?? "")} to ${statusLabel(activity.toValue ?? "")}`;
-    case "ASSIGNEE_CHANGED":
-      return activity.toValue
-        ? "changed the assignee"
-        : "unassigned this request";
+    case "ASSIGNEE_CHANGED": {
+      const toName = activity.toValue ? (names[activity.toValue] ?? activity.toValue) : null;
+      const fromName = activity.fromValue ? (names[activity.fromValue] ?? activity.fromValue) : null;
+      if (toName) return `assigned this request to ${toName}`;
+      if (fromName) return `unassigned this request from ${fromName}`;
+      return "unassigned this request";
+    }
     default:
       return "updated this request";
   }
 }
 
-export function ActivityTimeline({ activities }: { activities: ActivityItem[] }) {
+export function ActivityTimeline({
+  activities,
+  names,
+}: {
+  activities: ActivityItem[];
+  names: Record<string, string>;
+}) {
   if (activities.length === 0) {
     return <p className="text-sm text-slate-700">No activity recorded yet.</p>;
   }
@@ -28,7 +37,7 @@ export function ActivityTimeline({ activities }: { activities: ActivityItem[] })
         <li key={activity.id} className="relative">
           <span className="absolute -left-[21px] top-1.5 size-2.5 rounded-full bg-teal-700" aria-hidden />
           <p className="text-sm text-slate-900">
-            <span className="font-medium">{activity.actor.name}</span> {activityText(activity)}
+            <span className="font-medium">{activity.actor.name}</span> {activityText(activity, names)}
           </p>
           <p className="text-xs text-slate-600">{formatDateTime(activity.createdAt)}</p>
         </li>

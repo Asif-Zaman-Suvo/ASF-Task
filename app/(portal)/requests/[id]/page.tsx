@@ -53,7 +53,7 @@ export default async function RequestDetailPage({
         <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <p className="font-mono text-xs text-slate-600">{formatRequestNumber(request.number)}</p>
-            <h1 className="text-xl font-semibold wrap-break-words text-slate-900 sm:text-2xl">
+            <h1 className="text-xl font-semibold wrap-break-word text-slate-900 sm:text-2xl">
               {request.title}
             </h1>
           </div>
@@ -97,7 +97,7 @@ export default async function RequestDetailPage({
         <h2 id="activity-heading" className="text-lg font-semibold text-slate-900">
           Activity
         </h2>
-        <ActivityTimeline activities={request.activities} />
+        <ActivityTimeline activities={request.activities} names={names} />
       </section>
 
       {summary.byAssignee.length > 0 ? (

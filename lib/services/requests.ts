@@ -1,7 +1,8 @@
 import { cache } from "react";
-import type { ServiceRequest } from "@prisma/client";
+import type { Prisma, ServiceRequest } from "@prisma/client";
 import { AppError } from "@/lib/errors";
 import { prisma } from "@/lib/db";
+import { cachedQuery, CACHE_TAGS } from "@/lib/cache-tags";
 import { formatRequestNumber } from "@/lib/format";
 import { SORT_COLUMNS, STATUS_RANK } from "@/lib/constants";
 import type { RequestQuery } from "@/lib/validations/request-query";
@@ -113,10 +114,16 @@ export async function listRequests(query: RequestQuery): Promise<ListRequestsRes
   const where = buildRequestWhere(query);
   const skip = (query.page - 1) * query.limit;
 
+  const sortColumn = SORT_COLUMNS[query.sort];
+  const orderBy: Prisma.ServiceRequestOrderByWithRelationInput[] = [
+    { [sortColumn]: query.order },
+    { number: "asc" },
+  ];
+
   const [rows, total] = await Promise.all([
     prisma.serviceRequest.findMany({
       where,
-      orderBy: { [SORT_COLUMNS[query.sort]]: query.order },
+      orderBy,
       skip,
       take: query.limit,
       select: listSelect,
@@ -227,11 +234,15 @@ export async function updateRequestAssignee(
   });
 }
 
-export async function listCategories() {
+async function loadCategories() {
   return prisma.category.findMany({
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
+}
+
+export async function listCategories() {
+  return cachedQuery("list-categories", [CACHE_TAGS.categories], loadCategories);
 }
 
 export type AssigneeWorkloadRow = AssigneeActivitySummary & { name: string };
@@ -243,6 +254,7 @@ export type AssigneeWorkloadRow = AssigneeActivitySummary & { name: string };
 export async function summarizeAssigneeWorkload(): Promise<{
   byAssignee: AssigneeWorkloadRow[];
   skipped: number;
+  ignored: number;
 }> {
   const [activities, users] = await Promise.all([
     prisma.activity.findMany({
@@ -267,5 +279,6 @@ export async function summarizeAssigneeWorkload(): Promise<{
       name: names.get(row.assigneeId) ?? "Unknown",
     })),
     skipped: summary.skipped,
+    ignored: summary.ignored,
   };
 }
