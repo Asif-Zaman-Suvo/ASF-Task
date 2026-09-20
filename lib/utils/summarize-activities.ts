@@ -46,24 +46,20 @@ type AssigneeBucket = {
   durationCount: number;
 };
 
-/**
- * Single-pass O(n) summary. Never throws.
- *
- * - `skipped`: malformed/incomplete records (missing ids, bad dates, unknown types)
- * - `ignored`: valid but irrelevant (CREATED, non-RESOLVED status, extra resolves
- *   with no open assignment)
- *
- * Precondition: activities for the same requestId must already be in chronological
- * `createdAt` order. Pairing follows array order. This function does not sort.
- *
- * Unassign (`ASSIGNEE_CHANGED` with `assigneeId: null`) clears pairing and counts
- * as ignored. A missing `assigneeId` key is skipped and does not clear pairing.
- */
-export function summarizeActivities(activities: unknown): SummarizeResult {
-  if (!Array.isArray(activities)) {
-    return { byAssignee: [], skipped: 0, ignored: 0 };
-  }
+function emptyResult(): SummarizeResult {
+  return { byAssignee: [], skipped: 0, ignored: 0 };
+}
 
+/**
+ * Incremental O(n) summarizer. Call `add` per record, then `finish`.
+ * Same semantics as `summarizeActivities`. Never throws.
+ *
+ * - `skipped`: malformed/incomplete (missing ids, bad dates, unknown types, missing assigneeId key)
+ * - `ignored`: CREATED, non-RESOLVED status, explicit unassign (`assigneeId: null`), extra resolve
+ *
+ * Precondition: records for the same requestId must be added in chronological order.
+ */
+export function createActivitySummarizer() {
   const byAssignee = new Map<string, AssigneeBucket>();
   const requestState = new Map<string, { assigneeId: string; assignedAt: number }>();
   const resolvedWithoutOpen = new Set<string>();
@@ -83,10 +79,10 @@ export function summarizeActivities(activities: unknown): SummarizeResult {
     return created;
   };
 
-  for (const item of activities) {
+  function add(item: unknown) {
     if (!item || typeof item !== "object") {
       skipped += 1;
-      continue;
+      return;
     }
 
     const record = item as ActivityInput;
@@ -96,39 +92,39 @@ export function summarizeActivities(activities: unknown): SummarizeResult {
 
     if (!isNonEmptyString(requestId) || !isNonEmptyString(type) || !createdAt) {
       skipped += 1;
-      continue;
+      return;
     }
 
     if (type === "CREATED") {
       ignored += 1;
-      continue;
+      return;
     }
 
     if (type === "ASSIGNEE_CHANGED") {
       if (!Object.hasOwn(record, "assigneeId")) {
         skipped += 1;
-        continue;
+        return;
       }
       const assigneeId = record.assigneeId;
       if (assigneeId === null) {
         requestState.delete(requestId);
         ignored += 1;
-        continue;
+        return;
       }
       if (!isNonEmptyString(assigneeId)) {
         skipped += 1;
-        continue;
+        return;
       }
       bucket(assigneeId).assigned += 1;
       requestState.set(requestId, { assigneeId, assignedAt: createdAt.getTime() });
       resolvedWithoutOpen.delete(requestId);
-      continue;
+      return;
     }
 
     if (type === "STATUS_CHANGED") {
       if (record.toValue !== "RESOLVED") {
         ignored += 1;
-        continue;
+        return;
       }
 
       const current = requestState.get(requestId);
@@ -142,32 +138,43 @@ export function summarizeActivities(activities: unknown): SummarizeResult {
         }
         requestState.delete(requestId);
         resolvedWithoutOpen.add(requestId);
-        continue;
+        return;
       }
 
       if (isNonEmptyString(record.assigneeId) && !resolvedWithoutOpen.has(requestId)) {
         bucket(record.assigneeId).resolved += 1;
         resolvedWithoutOpen.add(requestId);
-        continue;
+        return;
       }
 
       ignored += 1;
-      continue;
+      return;
     }
 
     skipped += 1;
   }
 
-  return {
-    byAssignee: Array.from(byAssignee, ([assigneeId, stats]) => ({
-      assigneeId,
-      totalAssigned: stats.assigned,
-      totalResolved: stats.resolved,
-      averageResolutionTimeMs: stats.durationCount
-        ? stats.durationSum / stats.durationCount
-        : null,
-    })),
-    skipped,
-    ignored,
-  };
+  function finish(): SummarizeResult {
+    return {
+      byAssignee: Array.from(byAssignee, ([assigneeId, stats]) => ({
+        assigneeId,
+        totalAssigned: stats.assigned,
+        totalResolved: stats.resolved,
+        averageResolutionTimeMs: stats.durationCount
+          ? stats.durationSum / stats.durationCount
+          : null,
+      })),
+      skipped,
+      ignored,
+    };
+  }
+
+  return { add, finish };
+}
+
+export function summarizeActivities(activities: unknown): SummarizeResult {
+  if (!Array.isArray(activities)) return emptyResult();
+  const summarizer = createActivitySummarizer();
+  for (const item of activities) summarizer.add(item);
+  return summarizer.finish();
 }

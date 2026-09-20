@@ -136,20 +136,36 @@ describe("request service API", () => {
     expect(result.data.map((item) => item.status)).toEqual(["CLOSED", "RESOLVED", "PENDING"]);
   });
 
-  it("updates status and writes activity, rejecting no-ops", async () => {
+  it("updates status and treats a matching no-op as idempotent", async () => {
     const updated = await updateRequestStatus("req_test_1", "IN_PROGRESS", "u1");
     expect(updated.status).toBe("IN_PROGRESS");
     expect(updated.activities.some((item) => item.type === "STATUS_CHANGED")).toBe(true);
 
-    await expect(updateRequestStatus("req_test_1", "IN_PROGRESS", "u1")).rejects.toMatchObject({
-      code: "NO_CHANGE",
-      status: 400,
+    const again = await updateRequestStatus("req_test_1", "IN_PROGRESS", "u1");
+    expect(again.status).toBe("IN_PROGRESS");
+    expect(again.activities).toHaveLength(updated.activities.length);
+  });
+
+  it("rejects a stale updatedAt with 409", async () => {
+    await expect(
+      updateRequestStatus("req_test_2", "CLOSED", "u1", "2000-01-01T00:00:00.000Z"),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      status: 409,
     });
+
+    const current = await getRequestById("req_test_2");
+    const updated = await updateRequestStatus("req_test_2", "CLOSED", "u1", current!.updatedAt);
+    expect(updated.status).toBe("CLOSED");
   });
 
   it("updates assignee and rejects unknown users", async () => {
     const updated = await updateRequestAssignee("req_test_1", "u1", "u2");
     expect(updated.assignee?.id).toBe("u1");
+
+    const again = await updateRequestAssignee("req_test_1", "u1", "u2");
+    expect(again.assignee?.id).toBe("u1");
+    expect(again.activities).toHaveLength(updated.activities.length);
 
     try {
       await updateRequestAssignee("req_test_1", "nope", "u1");

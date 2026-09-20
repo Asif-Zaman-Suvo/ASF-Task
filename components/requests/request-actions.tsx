@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
+import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { STATUSES, type Status } from "@/lib/constants";
@@ -15,27 +15,42 @@ export function RequestActions({
   status,
   assigneeId,
   assignees,
+  updatedAt,
 }: {
   requestId: string;
   status: Status;
   assigneeId: string | null;
   assignees: PersonRef[];
+  updatedAt: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [optimisticStatus, setOptimisticStatus] = useOptimistic(status);
   const [optimisticAssignee, setOptimisticAssignee] = useOptimistic(assigneeId);
   const [error, setError] = useState<string | null>(null);
+  const statusRef = useRef<HTMLSelectElement>(null);
+  const assigneeRef = useRef<HTMLSelectElement>(null);
+  const lastControl = useRef<"status" | "assignee" | null>(null);
+  const wasPending = useRef(false);
+
+  useEffect(() => {
+    if (wasPending.current && !isPending && lastControl.current) {
+      const node = lastControl.current === "status" ? statusRef.current : assigneeRef.current;
+      node?.focus();
+    }
+    wasPending.current = isPending;
+  }, [isPending]);
 
   function updateStatus(next: Status) {
     if (next === optimisticStatus || isPending) return;
+    lastControl.current = "status";
     setError(null);
     startTransition(async () => {
       setOptimisticStatus(next);
       try {
         await apiFetch(`/api/requests/${requestId}/status`, {
           method: "PATCH",
-          body: JSON.stringify({ status: next }),
+          body: JSON.stringify({ status: next, updatedAt }),
         });
         toast.success("Status updated");
         router.refresh();
@@ -43,19 +58,21 @@ export function RequestActions({
         const message = err instanceof ApiClientError ? err.message : "Failed to update status";
         setError(message);
         toast.error(message);
+        if (err instanceof ApiClientError && err.status === 409) router.refresh();
       }
     });
   }
 
   function updateAssignee(next: string | null) {
     if (next === optimisticAssignee || isPending) return;
+    lastControl.current = "assignee";
     setError(null);
     startTransition(async () => {
       setOptimisticAssignee(next);
       try {
         await apiFetch(`/api/requests/${requestId}/assignee`, {
           method: "PATCH",
-          body: JSON.stringify({ assigneeId: next }),
+          body: JSON.stringify({ assigneeId: next, updatedAt }),
         });
         toast.success("Assignee updated");
         router.refresh();
@@ -63,6 +80,7 @@ export function RequestActions({
         const message = err instanceof ApiClientError ? err.message : "Failed to update assignee";
         setError(message);
         toast.error(message);
+        if (err instanceof ApiClientError && err.status === 409) router.refresh();
       }
     });
   }
@@ -73,6 +91,7 @@ export function RequestActions({
       <div className="grid gap-3 sm:grid-cols-2">
         <Select
           id="request-status"
+          ref={statusRef}
           label="Status"
           value={optimisticStatus}
           disabled={isPending}
@@ -86,6 +105,7 @@ export function RequestActions({
         </Select>
         <Select
           id="request-assignee"
+          ref={assigneeRef}
           label="Assignee"
           value={optimisticAssignee ?? ""}
           disabled={isPending}

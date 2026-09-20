@@ -87,6 +87,7 @@ export default async function RequestDetailPage({
           status={request.status}
           assigneeId={request.assignee?.id ?? null}
           assignees={assignees}
+          updatedAt={request.updatedAt}
         />
       </section>
 

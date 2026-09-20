@@ -2,12 +2,12 @@ import { cache } from "react";
 import type { Prisma, ServiceRequest } from "@prisma/client";
 import { AppError } from "@/lib/errors";
 import { prisma } from "@/lib/db";
-import { cachedQuery, CACHE_TAGS } from "@/lib/cache-tags";
+import { cachedQuery, CACHE_TAGS, revalidateWorkload } from "@/lib/cache-tags";
 import { formatRequestNumber } from "@/lib/format";
 import { SORT_COLUMNS, STATUS_RANK } from "@/lib/constants";
 import type { RequestQuery } from "@/lib/validations/request-query";
 import { buildRequestWhere } from "@/lib/services/request-where";
-import { summarizeActivities } from "@/lib/utils/summarize-activities";
+import { createActivitySummarizer } from "@/lib/utils/summarize-activities";
 import { listAssignees } from "@/lib/services/users";
 import type { AssigneeActivitySummary } from "@/lib/utils/summarize-activities";
 import type {
@@ -151,18 +151,31 @@ export const getRequestById = cache(async (id: string): Promise<RequestDetail | 
   return toDetail(row);
 });
 
+function assertFresh(currentUpdatedAt: Date, expectedUpdatedAt?: string) {
+  if (!expectedUpdatedAt) return;
+  if (currentUpdatedAt.toISOString() !== expectedUpdatedAt) {
+    throw new AppError("CONFLICT", "Request was updated by someone else", 409);
+  }
+}
+
 export async function updateRequestStatus(
   id: string,
   status: ServiceRequest["status"],
   actorId: string,
+  expectedUpdatedAt?: string,
 ): Promise<RequestDetail> {
-  return prisma.$transaction(async (tx) => {
+  const { detail, mutated } = await prisma.$transaction(async (tx) => {
     const current = await tx.serviceRequest.findUnique({ where: { id } });
     if (!current) {
       throw new AppError("NOT_FOUND", "Request not found", 404);
     }
+    assertFresh(current.updatedAt, expectedUpdatedAt);
     if (current.status === status) {
-      throw new AppError("NO_CHANGE", "Status is already set to this value", 400);
+      const unchanged = await tx.serviceRequest.findUniqueOrThrow({
+        where: { id },
+        include: detailInclude,
+      });
+      return { detail: toDetail(unchanged), mutated: false };
     }
 
     await tx.serviceRequest.update({
@@ -185,22 +198,30 @@ export async function updateRequestStatus(
       where: { id },
       include: detailInclude,
     });
-    return toDetail(updated);
+    return { detail: toDetail(updated), mutated: true };
   });
+  if (mutated) revalidateWorkload();
+  return detail;
 }
 
 export async function updateRequestAssignee(
   id: string,
   assigneeId: string | null,
   actorId: string,
+  expectedUpdatedAt?: string,
 ): Promise<RequestDetail> {
-  return prisma.$transaction(async (tx) => {
+  const { detail, mutated } = await prisma.$transaction(async (tx) => {
     const current = await tx.serviceRequest.findUnique({ where: { id } });
     if (!current) {
       throw new AppError("NOT_FOUND", "Request not found", 404);
     }
+    assertFresh(current.updatedAt, expectedUpdatedAt);
     if (current.assigneeId === assigneeId) {
-      throw new AppError("NO_CHANGE", "Assignee is already set to this value", 400);
+      const unchanged = await tx.serviceRequest.findUniqueOrThrow({
+        where: { id },
+        include: detailInclude,
+      });
+      return { detail: toDetail(unchanged), mutated: false };
     }
 
     if (assigneeId) {
@@ -230,8 +251,10 @@ export async function updateRequestAssignee(
       where: { id },
       include: detailInclude,
     });
-    return toDetail(updated);
+    return { detail: toDetail(updated), mutated: true };
   });
+  if (mutated) revalidateWorkload();
+  return detail;
 }
 
 async function loadCategories() {
@@ -247,30 +270,37 @@ export async function listCategories() {
 
 export type AssigneeWorkloadRow = AssigneeActivitySummary & { name: string };
 
-/**
- * Runs summarizeActivities over the full activity table (~25k seeded rows),
- * demonstrating the utility at the scale the brief describes.
- */
-export async function summarizeAssigneeWorkload(): Promise<{
+const WORKLOAD_BATCH = 1_000;
+
+async function loadAssigneeWorkload(): Promise<{
   byAssignee: AssigneeWorkloadRow[];
   skipped: number;
   ignored: number;
 }> {
-  const [activities, users] = await Promise.all([
-    prisma.activity.findMany({
+  const summarizer = createActivitySummarizer();
+  const users = await listAssignees();
+  let cursorId: string | undefined;
+
+  for (;;) {
+    const batch = await prisma.activity.findMany({
+      take: WORKLOAD_BATCH,
+      ...(cursorId ? { skip: 1, cursor: { id: cursorId } } : {}),
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       select: {
+        id: true,
         requestId: true,
         assigneeId: true,
         type: true,
         toValue: true,
         createdAt: true,
       },
-      orderBy: { createdAt: "asc" },
-    }),
-    listAssignees(),
-  ]);
+    });
+    for (const row of batch) summarizer.add(row);
+    if (batch.length < WORKLOAD_BATCH) break;
+    cursorId = batch[batch.length - 1]?.id;
+  }
 
-  const summary = summarizeActivities(activities);
+  const summary = summarizer.finish();
   const names = new Map(users.map((user) => [user.id, user.name]));
 
   return {
@@ -281,4 +311,8 @@ export async function summarizeAssigneeWorkload(): Promise<{
     skipped: summary.skipped,
     ignored: summary.ignored,
   };
+}
+
+export async function summarizeAssigneeWorkload() {
+  return cachedQuery("assignee-workload", [CACHE_TAGS.workload], loadAssigneeWorkload);
 }

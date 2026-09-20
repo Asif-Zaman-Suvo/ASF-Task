@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { summarizeActivities } from "@/lib/utils/summarize-activities";
+import {
+  createActivitySummarizer,
+  summarizeActivities,
+} from "@/lib/utils/summarize-activities";
 
 describe("summarizeActivities", () => {
   it("returns empty result for non-arrays", () => {
@@ -240,5 +243,35 @@ describe("summarizeActivities", () => {
       expect(row.totalAssigned).toBeGreaterThanOrEqual(0);
       expect(row.totalResolved).toBeGreaterThanOrEqual(0);
     }
+  });
+
+  it("matches summarizeActivities when records are added in cursor batches", () => {
+    const records = [
+      {
+        requestId: "r1",
+        type: "ASSIGNEE_CHANGED",
+        assigneeId: "a1",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        requestId: "r1",
+        type: "STATUS_CHANGED",
+        toValue: "RESOLVED",
+        createdAt: "2026-01-01T02:00:00.000Z",
+      },
+      {
+        requestId: "r2",
+        type: "ASSIGNEE_CHANGED",
+        assigneeId: "a2",
+        createdAt: "2026-01-02T00:00:00.000Z",
+      },
+    ];
+
+    const summarizer = createActivitySummarizer();
+    summarizer.add(records[0]);
+    summarizer.add(records[1]);
+    summarizer.add(records[2]);
+
+    expect(summarizer.finish()).toEqual(summarizeActivities(records));
   });
 });

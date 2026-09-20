@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, type MouseEvent } from "react";
+import type { MouseEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -28,9 +28,7 @@ export function RequestPagination({
   meta: PaginationMeta;
 }) {
   const router = useRouter();
-  const parentStart = useListTransition();
-  const [isPending, localStart] = useTransition();
-  const startTransition = parentStart ?? localStart;
+  const startTransition = useListTransition();
   const totalPages = Math.max(meta.totalPages, 1);
 
   function onPageClick(event: MouseEvent<HTMLAnchorElement>, href: string) {
@@ -38,9 +36,13 @@ export function RequestPagination({
       return;
     }
     event.preventDefault();
-    startTransition(() => {
-      router.push(href);
-    });
+    if (startTransition) {
+      startTransition(() => {
+        router.push(href);
+      });
+      return;
+    }
+    router.push(href);
   }
 
   if (meta.total === 0) return null;
@@ -56,12 +58,9 @@ export function RequestPagination({
     <nav
       className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
       aria-label="Pagination"
-      aria-busy={isPending}
     >
       <p className="text-sm text-slate-700" aria-live="polite">
-        {isPending
-          ? "Updating results…"
-          : `Showing ${from}–${to} of ${meta.total.toLocaleString()} requests`}
+        Showing {from}–{to} of {meta.total.toLocaleString()} requests
       </p>
       <div className="flex w-full items-center gap-2 sm:w-auto">
         {hasPrev ? (

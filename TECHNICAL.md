@@ -20,7 +20,7 @@ Pages never HTTP-call themselves for the initial list/detail payload. Route Hand
 | `prisma/` | Schema, migrations, seed |
 | `proxy.ts` | JWT gate (Next.js 16 proxy, formerly middleware) |
 | `tests/` | Vitest |
-| `e2e/` | Playwright (`portal.spec.ts`, 9 tests) |
+| `e2e/` | Playwright (`portal.spec.ts`, 11 tests) |
 
 ## Server vs Client Components
 
@@ -34,8 +34,9 @@ JavaScript ships only where there is interaction. The table is HTML from the ser
 
 - **List/detail reads:** RSC + `searchParams` / `params` + `dynamic = 'force-dynamic'`. Direct URL access and refresh work because the server re-reads the database. `getRequestById` is wrapped in React `cache()`, so `generateMetadata` and the page share a single DB round-trip. Detail loads chronological activity history.
 - **List UI state:** the URL (`search`, `status`, `priority`, `categoryId`, `assigneeId`, `sort`, `order`, `page`, `limit`). Debounced search (300ms) and filters call `router.replace` inside `useTransition` so the previous table stays visible with an updating indicator. Pagination uses `<Link>` + `router.push` in the same transition, so the table dims. Refresh keeps the same query. `page` beyond `totalPages` redirects to the last page.
-- **Mutations:** `PATCH` Route Handlers via `apiFetch` (10s timeout). Status and assignee both use `useOptimistic` + `useTransition`, then `router.refresh()`. `isPending` disables the fieldset so duplicate submits cannot fire. Failures toast and roll back to the last server-rendered value.
-- **Reference data cache:** `listCategories` and `listAssignees` use `unstable_cache` with tags (`categories`, `assignees`) and a 5-minute revalidate. Users and categories are seed-only, so nothing calls `revalidateTag` yet. List/detail pages stay `force-dynamic` because the request table is live.
+- **Mutations:** `PATCH` Route Handlers via `apiFetch` (10s timeout). Status and assignee both use `useOptimistic` + `useTransition`, then `router.refresh()`. `isPending` disables the fieldset so duplicate submits cannot fire; focus returns to the last-edited select when saving finishes. Same-status / same-assignee PATCHes are idempotent 200s (no extra activity row). Optional `updatedAt` is an optimistic-concurrency precondition: a mismatch returns `409 CONFLICT`. Failures toast and roll back to the last server-rendered value.
+- **Reference data cache:** `listCategories` and `listAssignees` use `unstable_cache` with tags (`categories`, `assignees`) and a 5-minute revalidate. Users and categories are seed-only, so those tags are not invalidated at runtime. List/detail pages stay `force-dynamic` because the request table is live.
+- **Workload cache:** `GET /api/reports/assignees` is tagged `assignee-workload` (5-minute revalidate). Status/assignee mutations that actually write call `revalidateTag`. The loader streams activities in 1_000-row Prisma cursor batches (`createdAt, id`) into `createActivitySummarizer().add`, so the report path does not materialize the full activity table as one array.
 - **TanStack Query is not used.** A client cache would duplicate the URL + RSC as source of truth and fight `router.refresh()`.
 
 ## Performance
@@ -74,9 +75,9 @@ JavaScript ships only where there is interaction. The table is HTML from the ser
 
 Single pass, O(n) time, O(k + r) memory. Never throws. `skipped` is malformed/incomplete records; `ignored` is valid noise (`CREATED`, non-RESOLVED status, explicit unassign, extra resolve with no open assignment). `ASSIGNEE_CHANGED` with an id counts assigned and opens pairing. `assigneeId: null` is an unassign: pairing clears and the event is ignored. A missing `assigneeId` key is skipped and does not clear pairing. `STATUS_CHANGED` to `RESOLVED` counts for the current assignee and closes pairing, so reopen + resolve cannot inflate totals. Duration is included in the average only when `resolvedAt >= assignedAt`.
 
-Precondition: activities for the same `requestId` must already be in chronological `createdAt` order. The function does not sort. Callers already pass that order (detail `include.activities.orderBy: createdAt asc`, report `findMany` the same).
+Precondition: activities for the same `requestId` must already be in chronological `createdAt` order. The function does not sort. `summarizeActivities` is a convenience wrapper; the report loader uses `createActivitySummarizer` so each cursor batch can `add` then `finish` once. Callers already pass chronological order (detail `include.activities.orderBy: createdAt asc`, report `orderBy: [{ createdAt: "asc" }, { id: "asc" }]`).
 
-`GET /api/reports/assignees` runs the utility over the whole activity table (~26.5k seeded rows) and returns per-assignee totals (assigned, resolved, average resolution time) plus `skipped` and `ignored`. The detail page also runs it on that request’s history (“Workload from history”). There is no separate reports dashboard.
+`GET /api/reports/assignees` streams the activity table (~26.5k seeded rows) in cursor batches through that summarizer and returns per-assignee totals (assigned, resolved, average resolution time) plus `skipped` and `ignored`. The result is cached under the `assignee-workload` tag until a real mutation. The detail page still runs `summarizeActivities` on that request’s history (“Workload from history”). There is no separate reports dashboard.
 
 ## Responsive and accessibility
 

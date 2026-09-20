@@ -118,6 +118,33 @@ test("filter, sort, and pagination state is preserved in the URL after refresh",
   await expect(page.locator("#order")).toHaveValue("asc");
 });
 
+test("category and assignee filters stay in the URL after refresh", async ({ page }) => {
+  await login(page);
+
+  await page.locator("#categoryId").selectOption("cat_it");
+  await page.locator("#assigneeId").selectOption("unassigned");
+  await expect(page).toHaveURL(/categoryId=cat_it/);
+  await expect(page).toHaveURL(/assigneeId=unassigned/);
+
+  const url = page.url();
+  await page.reload();
+  await expect(page).toHaveURL(url);
+  await expect(page.locator("#categoryId")).toHaveValue("cat_it");
+  await expect(page.locator("#assigneeId")).toHaveValue("unassigned");
+});
+
+test("out-of-range page redirects to the last page", async ({ page }) => {
+  await login(page);
+  await page.goto("/requests?page=9999");
+  await expect(page).not.toHaveURL(/page=9999/);
+  await expect(page.getByRole("navigation", { name: "Pagination" })).toBeVisible();
+  const label = page.getByText(/Page \d+ of \d+/);
+  await expect(label).toBeVisible();
+  const text = await label.textContent();
+  const match = text?.match(/Page (\d+) of (\d+)/);
+  expect(match?.[1]).toBe(match?.[2]);
+});
+
 test("unknown request shows not found", async ({ page }) => {
   await login(page);
   await page.goto("/requests/does-not-exist");

@@ -13,8 +13,8 @@ export async function PATCH(
     const session = await requireSession();
     const { id } = await context.params;
     const json = await request.json().catch(() => null);
-    const { assigneeId } = updateAssigneeSchema.parse(json);
-    const data = await updateRequestAssignee(id, assigneeId, session.id);
+    const { assigneeId, updatedAt } = updateAssigneeSchema.parse(json);
+    const data = await updateRequestAssignee(id, assigneeId, session.id, updatedAt);
     return NextResponse.json({ data });
   } catch (error) {
     return toErrorResponse(error);

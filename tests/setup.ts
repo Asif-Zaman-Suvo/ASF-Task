@@ -8,6 +8,7 @@ vi.mock("@/lib/cache-tags", async (importOriginal) => {
   return {
     ...actual,
     cachedQuery: <T,>(_key: string, _tags: string[], loader: () => Promise<T>) => loader(),
+    revalidateWorkload: vi.fn(),
   };
 });
 
