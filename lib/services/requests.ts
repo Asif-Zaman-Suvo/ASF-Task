@@ -169,7 +169,6 @@ export async function updateRequestStatus(
     if (!current) {
       throw new AppError("NOT_FOUND", "Request not found", 404);
     }
-    assertFresh(current.updatedAt, expectedUpdatedAt);
     if (current.status === status) {
       const unchanged = await tx.serviceRequest.findUniqueOrThrow({
         where: { id },
@@ -178,10 +177,15 @@ export async function updateRequestStatus(
       return { detail: toDetail(unchanged), mutated: false };
     }
 
-    await tx.serviceRequest.update({
-      where: { id },
-      data: { status, statusRank: STATUS_RANK[status] },
+    assertFresh(current.updatedAt, expectedUpdatedAt);
+
+    const written = await tx.serviceRequest.updateMany({
+      where: { id, updatedAt: current.updatedAt },
+      data: { status, statusRank: STATUS_RANK[status], updatedAt: new Date() },
     });
+    if (written.count === 0) {
+      throw new AppError("CONFLICT", "Request was updated by someone else", 409);
+    }
 
     await tx.activity.create({
       data: {
@@ -215,7 +219,6 @@ export async function updateRequestAssignee(
     if (!current) {
       throw new AppError("NOT_FOUND", "Request not found", 404);
     }
-    assertFresh(current.updatedAt, expectedUpdatedAt);
     if (current.assigneeId === assigneeId) {
       const unchanged = await tx.serviceRequest.findUniqueOrThrow({
         where: { id },
@@ -231,10 +234,15 @@ export async function updateRequestAssignee(
       }
     }
 
-    await tx.serviceRequest.update({
-      where: { id },
-      data: { assigneeId },
+    assertFresh(current.updatedAt, expectedUpdatedAt);
+
+    const written = await tx.serviceRequest.updateMany({
+      where: { id, updatedAt: current.updatedAt },
+      data: { assigneeId, updatedAt: new Date() },
     });
+    if (written.count === 0) {
+      throw new AppError("CONFLICT", "Request was updated by someone else", 409);
+    }
 
     await tx.activity.create({
       data: {
@@ -272,7 +280,7 @@ export type AssigneeWorkloadRow = AssigneeActivitySummary & { name: string };
 
 const WORKLOAD_BATCH = 1_000;
 
-async function loadAssigneeWorkload(): Promise<{
+export async function loadAssigneeWorkload(batchSize = WORKLOAD_BATCH): Promise<{
   byAssignee: AssigneeWorkloadRow[];
   skipped: number;
   ignored: number;
@@ -283,7 +291,7 @@ async function loadAssigneeWorkload(): Promise<{
 
   for (;;) {
     const batch = await prisma.activity.findMany({
-      take: WORKLOAD_BATCH,
+      take: batchSize,
       ...(cursorId ? { skip: 1, cursor: { id: cursorId } } : {}),
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       select: {
@@ -296,7 +304,7 @@ async function loadAssigneeWorkload(): Promise<{
       },
     });
     for (const row of batch) summarizer.add(row);
-    if (batch.length < WORKLOAD_BATCH) break;
+    if (batch.length < batchSize) break;
     cursorId = batch[batch.length - 1]?.id;
   }
 
@@ -314,5 +322,5 @@ async function loadAssigneeWorkload(): Promise<{
 }
 
 export async function summarizeAssigneeWorkload() {
-  return cachedQuery("assignee-workload", [CACHE_TAGS.workload], loadAssigneeWorkload);
+  return cachedQuery("assignee-workload", [CACHE_TAGS.workload], () => loadAssigneeWorkload());
 }

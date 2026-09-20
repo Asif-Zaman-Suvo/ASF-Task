@@ -44,7 +44,7 @@ All users share the password `Password123!`.
 | `rahman@asf.local` | Abdur Rahman |
 | `nadia@asf.local` | Nadia Islam |
 
-Authenticated API: `GET /api/requests` (search/filter/sort/pagination), `GET /api/requests/:id`, `PATCH /api/requests/:id/status`, `PATCH /api/requests/:id/assignee` (idempotent no-ops; optional `updatedAt` → `409` on conflict), and `GET /api/reports/assignees` (per-assignee workload summary, cursor-batched and tagged-cache; there is no separate reports page).
+Authenticated API: `GET /api/requests` (search/filter/sort/pagination), `GET /api/requests/:id`, `PATCH /api/requests/:id/status`, `PATCH /api/requests/:id/assignee` (a matching value returns 200 and writes nothing, regardless of `updatedAt`; a real change with a stale ISO `updatedAt` returns `409`; invalid `updatedAt` is `400`), and `GET /api/reports/assignees` (per-assignee workload summary, cursor-batched and tagged-cache; there is no separate reports page).
 
 ## Scripts
 
@@ -57,7 +57,7 @@ Authenticated API: `GET /api/requests` (search/filter/sort/pagination), `GET /ap
 | `npm run db:seed` | Re-seed |
 | `npm test` | Vitest (unit, service, component) |
 | `npm run lint` | ESLint |
-| `npm run test:e2e` | Playwright: 11 tests in `e2e/portal.spec.ts`. Needs a seeded database and `npx playwright install chromium`. Starts or reuses the app on port 3000. |
+| `npm run test:e2e` | Playwright: 12 tests in `e2e/portal.spec.ts`. Needs a seeded database and `npx playwright install chromium`. Starts or reuses the app on port 3000. |
 
 ## Assumptions
 

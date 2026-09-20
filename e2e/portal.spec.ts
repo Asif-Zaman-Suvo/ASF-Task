@@ -162,6 +162,31 @@ test("logout returns to login and blocks protected pages", async ({ page }) => {
   await expect(page).toHaveURL(/\/login/);
 });
 
+test("conflicted status mutation rolls back the selector", async ({ page }) => {
+  await login(page);
+  await page.goto("/requests/req_00001");
+  await expect(page.locator("#request-status")).toBeVisible();
+
+  const original = await page.locator("#request-status").inputValue();
+
+  await page.route("**/api/requests/*/status", async (route) => {
+    await route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: { code: "CONFLICT", message: "Request was updated by someone else" },
+      }),
+    });
+  });
+
+  const next = original === "CLOSED" ? "PENDING" : "CLOSED";
+  await page.locator("#request-status").selectOption(next);
+  await expect(
+    page.locator('[role="alert"]').filter({ hasText: "Request was updated by someone else" }),
+  ).toBeVisible();
+  await expect(page.locator("#request-status")).toHaveValue(original);
+});
+
 test("failed status mutation rolls back the selector", async ({ page }) => {
   await login(page);
   await page.goto("/requests/req_00001");
