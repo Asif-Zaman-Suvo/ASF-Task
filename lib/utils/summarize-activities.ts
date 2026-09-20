@@ -56,10 +56,8 @@ type AssigneeBucket = {
  * Precondition: activities for the same requestId must already be in chronological
  * `createdAt` order. Pairing follows array order. This function does not sort.
  *
- * Unassign (`ASSIGNEE_CHANGED` with empty assigneeId) clears the open assignment
- * so a later resolve is not credited to the previous assignee. A resolve closes
- * the open assignment; a later resolve on the same request counts only after a
- * new assign (so reopen + resolve cannot inflate totals).
+ * Unassign (`ASSIGNEE_CHANGED` with `assigneeId: null`) clears pairing and counts
+ * as ignored. A missing `assigneeId` key is skipped and does not clear pairing.
  */
 export function summarizeActivities(activities: unknown): SummarizeResult {
   if (!Array.isArray(activities)) {
@@ -107,9 +105,18 @@ export function summarizeActivities(activities: unknown): SummarizeResult {
     }
 
     if (type === "ASSIGNEE_CHANGED") {
+      if (!Object.hasOwn(record, "assigneeId")) {
+        skipped += 1;
+        continue;
+      }
       const assigneeId = record.assigneeId;
-      if (!isNonEmptyString(assigneeId)) {
+      if (assigneeId === null) {
         requestState.delete(requestId);
+        ignored += 1;
+        continue;
+      }
+      if (!isNonEmptyString(assigneeId)) {
+        skipped += 1;
         continue;
       }
       bucket(assigneeId).assigned += 1;

@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { ListTransitionContext } from "@/components/requests/list-transition";
 
 type Option = { id: string; name: string };
 
@@ -182,14 +183,16 @@ export function RequestFilters({
         {isPending ? "Updating results" : null}
       </div>
 
-      <div id="request-results" className="relative" aria-busy={isPending}>
-        {isPending ? (
-          <p className="mb-2 text-sm text-slate-600" aria-hidden>
-            Updating results…
-          </p>
-        ) : null}
-        <div className={isPending ? "opacity-60" : undefined}>{children}</div>
-      </div>
+      <ListTransitionContext.Provider value={startTransition}>
+        <div id="request-results" className="relative" aria-busy={isPending}>
+          {isPending ? (
+            <p className="mb-2 text-sm text-slate-600" aria-hidden>
+              Updating results…
+            </p>
+          ) : null}
+          <div className={isPending ? "opacity-60" : undefined}>{children}</div>
+        </div>
+      </ListTransitionContext.Provider>
     </div>
   );
 }

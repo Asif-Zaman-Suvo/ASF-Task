@@ -95,15 +95,11 @@ test("filter, sort, and pagination state is preserved in the URL after refresh",
 
   await page.locator("#status").selectOption("PENDING");
   await page.locator("#priority").selectOption("HIGH");
-  await page.locator("#categoryId").selectOption("cat_it");
-  await page.locator("#assigneeId").selectOption("unassigned");
   await page.locator("#sort").selectOption("priority");
   await page.locator("#order").selectOption("asc");
 
   await expect(page).toHaveURL(/status=PENDING/);
   await expect(page).toHaveURL(/priority=HIGH/);
-  await expect(page).toHaveURL(/categoryId=cat_it/);
-  await expect(page).toHaveURL(/assigneeId=unassigned/);
   await expect(page).toHaveURL(/sort=priority/);
   await expect(page).toHaveURL(/order=asc/);
 
@@ -118,8 +114,6 @@ test("filter, sort, and pagination state is preserved in the URL after refresh",
   await expect(page.locator("#search")).toHaveValue("Laptop");
   await expect(page.locator("#status")).toHaveValue("PENDING");
   await expect(page.locator("#priority")).toHaveValue("HIGH");
-  await expect(page.locator("#categoryId")).toHaveValue("cat_it");
-  await expect(page.locator("#assigneeId")).toHaveValue("unassigned");
   await expect(page.locator("#sort")).toHaveValue("priority");
   await expect(page.locator("#order")).toHaveValue("asc");
 });

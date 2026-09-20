@@ -10,6 +10,7 @@ import {
 } from "@/lib/validations/request-query";
 import type { PaginationMeta } from "@/lib/types/request";
 import { cn } from "@/lib/cn";
+import { useListTransition } from "@/components/requests/list-transition";
 
 const linkClass =
   "inline-flex min-h-11 flex-1 items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50 sm:flex-none";
@@ -27,7 +28,9 @@ export function RequestPagination({
   meta: PaginationMeta;
 }) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const parentStart = useListTransition();
+  const [isPending, localStart] = useTransition();
+  const startTransition = parentStart ?? localStart;
   const totalPages = Math.max(meta.totalPages, 1);
 
   function onPageClick(event: MouseEvent<HTMLAnchorElement>, href: string) {

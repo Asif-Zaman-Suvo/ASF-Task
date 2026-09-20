@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { parseRequestQuery } from "@/lib/validations/request-query";
+import { redirect } from "next/navigation";
+import { parseRequestQuery, requestQueryToSearchParams } from "@/lib/validations/request-query";
 import { listCategories, listRequests } from "@/lib/services/requests";
 import { listAssignees } from "@/lib/services/users";
 import { RequestFilters } from "@/components/requests/request-filters";
@@ -25,6 +26,13 @@ export default async function RequestsPage({
     listCategories(),
     listAssignees(),
   ]);
+
+  if (result.meta.total === 0 && query.page > 1) {
+    redirect(`/requests?${requestQueryToSearchParams({ ...query, page: 1 })}`);
+  }
+  if (result.meta.totalPages > 0 && query.page > result.meta.totalPages) {
+    redirect(`/requests?${requestQueryToSearchParams({ ...query, page: result.meta.totalPages })}`);
+  }
 
   const hasFilters = Boolean(
     query.search || query.status || query.priority || query.categoryId || query.assigneeId,

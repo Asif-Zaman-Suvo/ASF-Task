@@ -137,7 +137,39 @@ describe("summarizeActivities", () => {
         averageResolutionTimeMs: null,
       },
     ]);
-    expect(result.ignored).toBe(1);
+    expect(result.ignored).toBe(2);
+  });
+
+  it("skips ASSIGNEE_CHANGED with a missing assigneeId key and keeps pairing", () => {
+    const result = summarizeActivities([
+      {
+        requestId: "r1",
+        type: "ASSIGNEE_CHANGED",
+        assigneeId: "a1",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        requestId: "r1",
+        type: "ASSIGNEE_CHANGED",
+        createdAt: "2026-01-01T01:00:00.000Z",
+      },
+      {
+        requestId: "r1",
+        type: "STATUS_CHANGED",
+        toValue: "RESOLVED",
+        createdAt: "2026-01-01T02:00:00.000Z",
+      },
+    ]);
+
+    expect(result.skipped).toBe(1);
+    expect(result.byAssignee).toEqual([
+      {
+        assigneeId: "a1",
+        totalAssigned: 1,
+        totalResolved: 1,
+        averageResolutionTimeMs: 2 * 60 * 60 * 1000,
+      },
+    ]);
   });
 
   it("does not count a second resolve after reopen without a new assign", () => {

@@ -4,14 +4,19 @@ import { hashPasswordSync, verifyPassword } from "@/lib/auth/password";
 import { cachedQuery, CACHE_TAGS } from "@/lib/cache-tags";
 import type { SessionUser } from "@/lib/auth/types";
 
-const TIMING_PAD_HASH = hashPasswordSync("invalid-credentials-timing-pad");
+let timingPadHash: string | undefined;
+
+function getTimingPadHash() {
+  timingPadHash ??= hashPasswordSync("invalid-credentials-timing-pad");
+  return timingPadHash;
+}
 
 export async function authenticateUser(email: string, password: string): Promise<SessionUser> {
   const user = await prisma.user.findUnique({
     where: { email: email.toLowerCase() },
   });
 
-  const hash = user?.passwordHash ?? TIMING_PAD_HASH;
+  const hash = user?.passwordHash ?? getTimingPadHash();
   const matches = await verifyPassword(password, hash);
 
   if (!user || !matches) {

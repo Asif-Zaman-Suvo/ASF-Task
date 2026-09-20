@@ -51,6 +51,20 @@ const DESCRIPTIONS = [
   "Follow up with the requester after assignment.",
 ];
 
+function mulberry32(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function pick<T>(rng: () => number, items: readonly T[]): T {
+  return items[Math.floor(rng() * items.length)]!;
+}
+
 async function createManyInBatches<T>(
   label: string,
   rows: T[],
@@ -83,20 +97,22 @@ async function main() {
   const now = Date.now();
   const requests = Array.from({ length: REQUEST_COUNT }, (_, index) => {
     const n = index + 1;
+    const rng = mulberry32(0x9e3779b9 ^ n);
     const createdAt = new Date(now - (REQUEST_COUNT - index) * 45 * 60_000);
-    const unassigned = n % 10 === 0;
-    const status = STATUSES[n % STATUSES.length];
-    const assigneeId = unassigned ? null : USERS[(n + 1) % USERS.length].id;
+    const status = pick(rng, STATUSES);
+    const priority = pick(rng, PRIORITIES);
+    const unassigned = rng() < 0.12;
+    const assigneeId = unassigned ? null : pick(rng, USERS).id;
 
     return {
       id: `req_${String(n).padStart(5, "0")}`,
       number: n,
-      title: `${TITLE_TEMPLATES[n % TITLE_TEMPLATES.length]} #${n}`,
-      description: DESCRIPTIONS[n % DESCRIPTIONS.length],
-      requesterId: USERS[n % USERS.length].id,
-      categoryId: CATEGORIES[n % CATEGORIES.length].id,
-      priority: PRIORITIES[(n + 2) % PRIORITIES.length],
-      priorityRank: PRIORITY_RANK[PRIORITIES[(n + 2) % PRIORITIES.length]],
+      title: `${pick(rng, TITLE_TEMPLATES)} #${n}`,
+      description: pick(rng, DESCRIPTIONS),
+      requesterId: pick(rng, USERS).id,
+      categoryId: pick(rng, CATEGORIES).id,
+      priority,
+      priorityRank: PRIORITY_RANK[priority],
       status,
       statusRank: STATUS_RANK[status],
       assigneeId,
@@ -147,6 +163,8 @@ async function main() {
     }
 
     if (request.status !== "PENDING") {
+      const rng = mulberry32(0x85ebca6b ^ request.number);
+      const delayMs = Math.round((0.75 + rng() * 20) * 60 * 60_000);
       activities.push({
         id: `${request.id}_status`,
         requestId: request.id,
@@ -155,7 +173,7 @@ async function main() {
         type: "STATUS_CHANGED",
         fromValue: "PENDING",
         toValue: request.status,
-        createdAt: new Date(createdAt.getTime() + 3 * 60 * 60_000),
+        createdAt: new Date(createdAt.getTime() + delayMs),
       });
     }
   }

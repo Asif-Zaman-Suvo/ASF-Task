@@ -10,6 +10,5 @@ export function cachedQuery<T>(
   tags: string[],
   loader: () => Promise<T>,
 ): Promise<T> {
-  if (process.env.VITEST) return loader();
   return unstable_cache(loader, [key], { tags, revalidate: 300 })();
 }
