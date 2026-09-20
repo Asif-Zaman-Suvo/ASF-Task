@@ -1,11 +1,11 @@
 # Service Request Management Portal
 
-Compact production-like portal for As-Sunnah Foundation. Next.js App Router hosts both the UI and the API. No separate backend.
+Compact production-like portal for As-Sunnah Foundation. Next.js App Router hosts both the UI and the API. No separate backend and no paid external services.
 
 ## Stack
 
-- Next.js 16 App Router, React 19, TypeScript
-- Prisma + SQLite
+- Next.js 16.3.5 App Router, React 19, TypeScript
+- Prisma 6.19.3 + local SQLite
 - Zod, jose (JWT cookie session), bcryptjs
 - Tailwind CSS, sonner
 - Vitest, Playwright
@@ -20,7 +20,9 @@ npm run db:seed
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000) and sign in at `/login`. Unauthenticated pages redirect there; APIs return `401`.
+
+`npx prisma migrate dev` applies the migration history (schema, rank columns, rank-sort indexes) and generates the Prisma client. `npm run db:seed` writes 6 users, categories, **10,000** requests, and activity history.
 
 ### Environment
 
@@ -42,20 +44,20 @@ All users share the password `Password123!`.
 | `rahman@asf.local` | Abdur Rahman |
 | `nadia@asf.local` | Nadia Islam |
 
-Seed creates **10,000** requests plus activity history.
-
-Authenticated API: `GET /api/requests` (search/filter/sort/pagination), `GET /api/requests/:id`, `PATCH /api/requests/:id/status`, `PATCH /api/requests/:id/assignee`, and `GET /api/reports/assignees` (per-assignee workload summary over the full activity table).
+Authenticated API: `GET /api/requests` (search/filter/sort/pagination), `GET /api/requests/:id`, `PATCH /api/requests/:id/status`, `PATCH /api/requests/:id/assignee`, and `GET /api/reports/assignees` (per-assignee workload summary over the full activity table; there is no separate reports page).
 
 ## Scripts
 
 | Script | Purpose |
 |---|---|
 | `npm run dev` | Dev server |
-| `npm run build` / `npm start` | Production build |
+| `npm run build` | Production build |
+| `npm start` | Serve the production build |
+| `npm run db:migrate` | `prisma migrate dev` (same as setup) |
 | `npm run db:seed` | Re-seed |
 | `npm test` | Vitest (unit, service, component) |
-| `npm run test:e2e` | Playwright (needs a seeded database and `npx playwright install chromium`) |
 | `npm run lint` | ESLint |
+| `npm run test:e2e` | Playwright: 9 tests in `e2e/portal.spec.ts`. Needs a seeded database and `npx playwright install chromium`. Starts or reuses the app on port 3000. |
 
 ## Assumptions
 
